@@ -36,6 +36,7 @@ def fill_classifier(filename: str):
     
 
 filename = r"C:\Users\yunas\OneDrive\Рабочий стол\CourseWork\DBManagement\Classes.txt"
+# Убрать хардкод при обновлении
 """Path to file where classifier is"""
 
 if __name__ == "__main__":

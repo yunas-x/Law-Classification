@@ -13,3 +13,4 @@ class document_entity(Base):
     date = Column(Date)
     
     classified = relationship('classified_entity', back_populates="document")
+    text = relationship('text_entity', back_populates="document")

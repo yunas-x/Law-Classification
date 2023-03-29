@@ -1,6 +1,7 @@
 from datetime import datetime
 from fastapi import Depends, Request, Response, UploadFile, FastAPI
 from fastapi.responses import FileResponse
+import pandas as pd
 
 from ReadNSave.ReadSavedFile import readSavedDocx
 from ReadNSave.FileSave import saveDocx, turnToDocx
@@ -10,12 +11,17 @@ from DBManagement.DBContext import SessionLocal
 from sqlalchemy.orm import Session
 
 from DAO.incoming_dao import addIncoming
+import numpy as np
 from DAO.classified_dao import addClassified
+from DAO.text_dao import addText
 
 from DBManagement.Incomming.incoming_pydantic_model import document_model
+from DBManagement.Text.text_pydantic_model import text_model
 from DBManagement.Classified.classified_pydantic_model import classified_model
 
 from Fill_Classifier import filename
+
+from Model.Classifier import ClassifierWrapper
 
 
 app = FastAPI(title="Document Classifier")
@@ -61,7 +67,7 @@ async def classes():
           + "if done successfully checks its length, and if enough data "
           + "returns a class type of the document",
           summary="Takes a docx file and classifies it according the classifier",
-          response_description="A JSON response in format {'doc': logged_doc, 'classid': ID, 'class': classified}, " +
+          response_description="A JSON response in format {'classid': ID, 'class': classified}, " +
           "where doc is a filename in the system, ID is id for a class, and class is the type of the document"
          )
 async def classify(file: UploadFile, 
@@ -73,15 +79,16 @@ async def classify(file: UploadFile,
     
     Args:
         file (UploadFile): File uploaded by http
-        db (Session, optional): DB session to log operations. Defaults to Depends(get_db).
+        db (Session, optsional): DB session to log operations. Defaults to Depends(get_db).
 
     Returns:
-        _type_: {'doc': logged_doc, 'classid': ID, 'class': classified} response
+        _type_: {'classid': ID, 'class': classified} response
     """
+    
+    model = ClassifierWrapper()
     
     path = await saveDocx(file)
     path = await turnToDocx(path)
-    
 
     incoming_doc_log = document_model(name=str(path.absolute()), recieved_on=datetime.utcnow())
     logged_doc = addIncoming(db=db, item=incoming_doc_log)
@@ -89,15 +96,22 @@ async def classify(file: UploadFile,
     txt = await readSavedDocx(path)
     
     if txt:
-        id = 1
-        classified = "Success"
-    else:
-        id = 0
-        classified = "Not a docx, reformat file"
+        addText(db, text_model(id=logged_doc.id, text=txt))
+        text = ClassifierWrapper.clean_text(text=txt)
+        data = [ClassifierWrapper.clean_text(text)]
+        df1 = pd.DataFrame({"x": data})
+        
+        pred = model.model.predict(df1["x"])[0]
     
-    ### classified
+        id, classified = pred.split(" ", 1)
+    else:
+        id = "000."
+        classified = "Неопознанный файл"
+    
+    addClassified(db, classified_model(id=logged_doc.id, result=id))
+
     
     #classified_log = classified_model(id=logged_doc.id, result=logged_doc.name)
     #classified = addClassified(db=db, item=classified_log)
 
-    return {'doc': logged_doc, 'class_id': id, 'class': classified}
+    return {'class_id': id, 'class': classified.strip()}

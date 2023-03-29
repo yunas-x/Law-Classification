@@ -5,6 +5,7 @@ from DBManagement.DBContext import Base
 
 from DBManagement.Classifier.classifier_entity_model import *
 from DBManagement.Incomming.incoming_entity_model import *
+from DBManagement.Incomming.incoming_entity_model import *
 
 class classified_entity(Base):
     __tablename__ = "Classified"
